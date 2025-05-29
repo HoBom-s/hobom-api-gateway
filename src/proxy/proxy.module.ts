@@ -4,7 +4,11 @@ import { ProxyService } from "./service/proxy.service";
 import { ProxyController } from "./controller/proxy.controller";
 
 @Module({
-  imports: [HttpModule],
+  imports: [
+    HttpModule.register({
+      timeout: 3000,
+    }),
+  ],
   controllers: [ProxyController],
   providers: [ProxyService],
 })
