@@ -30,6 +30,11 @@ export class ProxyService {
       delete headers["content-length"];
       delete headers["transfer-encoding"];
 
+      const token = req.cookies["accessToken"];
+      if (token != null) {
+        headers["authorization"] = `Bearer ${token}`;
+      }
+
       const axiosResponse = await firstValueFrom(
         this.httpService.request({
           url,
@@ -57,6 +62,7 @@ export class ProxyService {
         res.json(axiosResponse.data);
       }
     } catch (error) {
+      console.log(error);
       throw new HttpException(
         error.response?.data || "Internal Server Error",
         error.response?.status || 500,
