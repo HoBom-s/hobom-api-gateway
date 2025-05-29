@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { HttpException, Injectable, Logger } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { Request, Response } from "express";
 import { firstValueFrom } from "rxjs";
@@ -57,11 +57,10 @@ export class ProxyService {
         res.json(axiosResponse.data);
       }
     } catch (error) {
-      console.error("Proxy forward error:", error.message, error.stack);
-      res.status(error?.response?.status || 500).json({
-        message: "유효한 서버 정보가 없어요.",
-        error: error.message,
-      });
+      throw new HttpException(
+        error.response?.data || "Internal Server Error",
+        error.response?.status || 500,
+      );
     }
   }
 }
