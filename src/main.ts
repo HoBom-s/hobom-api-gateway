@@ -1,5 +1,6 @@
 import { NestFactory } from "@nestjs/core";
 import * as express from "express";
+import * as cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
 import { RequestIdMiddleware } from "./shared/middlewares/request-id.middleware";
 import { TraceInterceptor } from "./shared/interceptors/trace.interceptors";
@@ -26,6 +27,7 @@ async function bootstrap() {
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  app.use(cookieParser);
   app.use(new RequestIdMiddleware().use);
 
   app.useGlobalInterceptors(new TraceInterceptor());
