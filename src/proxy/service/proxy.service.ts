@@ -62,7 +62,6 @@ export class ProxyService {
         res.json(axiosResponse.data);
       }
     } catch (error) {
-      console.log(error);
       throw new HttpException(
         error.response?.data || "Internal Server Error",
         error.response?.status || 500,

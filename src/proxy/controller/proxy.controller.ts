@@ -6,7 +6,7 @@ import { EndPointUtil } from "../../shared/end-point/end-point.util";
 @Controller(EndPointUtil.PREFIX)
 export class ProxyController {
   private readonly hostMap: Record<string, string> = {
-    "hobom-system-backend": "http://localhost:8080/hobom-system-backend/api/v1",
+    "hobom-system-backend": String(process.env.HOBOM_API_SERVER_HOST),
   };
 
   constructor(private readonly proxyService: ProxyService) {}
@@ -27,7 +27,6 @@ export class ProxyController {
         message: `Unknown service in path: ${req.originalUrl}`,
       });
     }
-
     return this.proxyService.forward(req, res, targetUrl);
   }
 }
