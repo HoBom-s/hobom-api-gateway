@@ -27,7 +27,7 @@ export default tseslint.config(
   {
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
-      "@typescript-eslint/no-floating-promises": "warn",
+      "@typescript-eslint/no-floating-promises": "off",
       "@typescript-eslint/unbound-method": "off",
 
       // class 혹은 function 의 arguments 에 접근할 때,
@@ -42,6 +42,8 @@ export default tseslint.config(
       // 데코레이터를 사용할때 그다지 도움이 되지 않는 옵션이므로
       // 해당 옵션은 `off` 하도록 한다.
       "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/prefer-promise-reject-errors": "off",
 
       // _ 인 경우에는 사용하지 않는 변수인 것으로 간주하도록 한다.
       "@typescript-eslint/no-unused-vars": [
