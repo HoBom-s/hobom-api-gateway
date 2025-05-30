@@ -10,16 +10,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: [
-      process.env.HOBOM_CLIENT_HOST_LOCAL,
-      process.env.HOBOM_CLIENT_HOST_LIVE,
-    ],
+    origin: [process.env.HOBOM_CLIENT_HOST],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
       "X-Requested-With",
       "Accept",
       "Origin",
+      "x-hobom-api-key",
       "Access-Control-Allow-Origin",
       "Access-Control-Allow-Credentials",
     ],
