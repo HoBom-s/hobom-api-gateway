@@ -32,9 +32,15 @@ async function bootstrap() {
 
   app.useGlobalInterceptors(new TraceInterceptor());
 
-  await app.listen(process.env.PORT || 8080, "0.0.0.0", () => {
-    console.log(`HoBom API GATEWAY Listening 🦊🐻 PORT: ${process.env.PORT}`);
-  });
+  await app.listen(
+    process.env.HOBOM_API_GATEWAY_PORT || 8080,
+    "0.0.0.0",
+    () => {
+      console.log(
+        `HoBom API GATEWAY Listening 🦊🐻 PORT: ${process.env.HOBOM_API_GATEWAY_PORT}`,
+      );
+    },
+  );
 }
 
 bootstrap();
