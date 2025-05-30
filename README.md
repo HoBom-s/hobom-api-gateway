@@ -28,7 +28,7 @@
 
 ## 🔑 Authentication
 
-This API Gateway enforces an API key authentication mechanism. Every request **must** include the API key in the `x-api-key` header. Requests without a valid API key will receive a `401 Unauthorized` response.
+This API Gateway enforces an API key authentication mechanism. Every request **must** include the API key in the `x-hobom-api-key` header. Requests without a valid API key will receive a `401 Unauthorized` response.
 
 ---
 
