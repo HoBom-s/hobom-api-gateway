@@ -4,6 +4,7 @@ import * as cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
 import { RequestIdMiddleware } from "./shared/middlewares/request-id.middleware";
 import { TraceInterceptor } from "./shared/interceptors/trace.interceptors";
+import { ApiKeyAuthGuard } from "./shared/guards/api-key.guard";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -29,6 +30,8 @@ async function bootstrap() {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
   app.use(new RequestIdMiddleware().use);
+
+  app.useGlobalGuards(new ApiKeyAuthGuard());
 
   app.useGlobalInterceptors(new TraceInterceptor());
 
