@@ -1,72 +1,43 @@
-import { HttpException, Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { Request, Response } from "express";
-import { firstValueFrom } from "rxjs";
-import { isReadable } from "stream";
+import { catchError, firstValueFrom, tap } from "rxjs";
+import { AxiosError } from "axios";
+import { HeaderBuilder } from "../../shared/http/header.builder";
+import { ResponseForwarderBuilder } from "../../shared/http/response-forwarder.builder";
+import { ErrorForwarderBuilder } from "../../shared/http/error-forwarder.builder";
 
 @Injectable()
 export class ProxyService {
-  private readonly logger = new Logger(ProxyService.name);
-
-  constructor(private readonly httpService: HttpService) {
-    this.httpService.axiosRef.interceptors.request.use((config) => {
-      return config;
-    });
-
-    this.httpService.axiosRef.interceptors.response.use(
-      (response) => {
-        return response;
-      },
-      (error) => {
-        return Promise.reject(error);
-      },
-    );
-  }
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly headerBuilder: HeaderBuilder,
+    private readonly responseForwarderBuilder: ResponseForwarderBuilder,
+    private readonly errorForwarderBuilder: ErrorForwarderBuilder,
+  ) {}
 
   public async forward(req: Request, res: Response, url: string) {
-    try {
-      const headers = { ...req.headers };
-      delete headers["host"];
-      delete headers["content-length"];
-      delete headers["transfer-encoding"];
+    const headers = this.headerBuilder.build(req);
 
-      const token = req.cookies["accessToken"];
-      if (token != null) {
-        headers["authorization"] = `Bearer ${token}`;
-      }
-
-      const axiosResponse = await firstValueFrom(
-        this.httpService.request({
+    await firstValueFrom(
+      this.httpService
+        .request({
           url,
           method: req.method,
           headers,
           data: req.body,
-        }),
-      );
-
-      Object.entries(axiosResponse.headers).forEach(([key, value]) => {
-        if (key.toLowerCase() === "set-cookie" && Array.isArray(value)) {
-          value.forEach((cookie) => {
-            res.append("Set-Cookie", cookie);
-          });
-        } else {
-          res.setHeader(key, value as string);
-        }
-      });
-      res.setHeader("access-control-allow-origin", req.headers.origin || "");
-
-      res.status(axiosResponse.status);
-      if (isReadable(axiosResponse.data)) {
-        axiosResponse.data.pipe(res);
-      } else {
-        res.json(axiosResponse.data);
-      }
-    } catch (error) {
-      console.log(error);
-      throw new HttpException(
-        error.response?.data || "Internal Server Error",
-        error.response?.status || 500,
-      );
-    }
+          responseType: "stream",
+          validateStatus: () => true,
+        })
+        .pipe(
+          tap((axiosResponse) => {
+            this.responseForwarderBuilder.build(axiosResponse, req, res);
+          }),
+          catchError((error: AxiosError) => {
+            this.errorForwarderBuilder.build(error, res);
+            return [];
+          }),
+        ),
+    );
   }
 }
