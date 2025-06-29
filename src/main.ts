@@ -31,7 +31,8 @@ async function bootstrap() {
 
   app.useGlobalGuards(new ApiKeyAuthGuard());
 
-  app.useGlobalInterceptors(new TraceInterceptor());
+  const traceInterceptor = app.get(TraceInterceptor);
+  app.useGlobalInterceptors(traceInterceptor);
 
   await app.listen(
     process.env.HOBOM_API_GATEWAY_PORT || 8080,
