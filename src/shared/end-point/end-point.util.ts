@@ -29,6 +29,6 @@ export class EndPointUtil {
 
     const proxiedPath = "/" + pathParts.join("/");
 
-    return `${targetHost}${proxiedPath}`;
+    return `${targetHost}/${proxiedPath}`;
   }
 }
