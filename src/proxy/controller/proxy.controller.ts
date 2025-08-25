@@ -27,6 +27,7 @@ export class ProxyController {
         message: `Unknown service in path: ${req.originalUrl}`,
       });
     }
+    console.log(targetUrl);
     return this.proxyService.forward(req, res, targetUrl);
   }
 }
