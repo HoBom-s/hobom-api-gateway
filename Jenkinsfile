@@ -101,7 +101,7 @@ pipeline {
 
     APP="\${APP:-hobom-api-gateway}"
     NS="\${NS:-hobom-api-gateway-latest}"
-    KCFG="\$HOME/.kube/config"
+    KCFG="/root/k3s/config/"
 
     # 매니페스트 경로: /root 대신 사용자 읽기 가능 경로 사용
     ROOT_DIR="/root/k3s/config/\${APP}"
