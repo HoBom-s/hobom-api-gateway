@@ -185,7 +185,6 @@ pipeline {
     fi
 
     kubectl --kubeconfig "\$KCFG" -n "\$NS" get pods -o wide
-    EOS
     set -x
     """
           }
