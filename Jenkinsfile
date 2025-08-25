@@ -79,62 +79,145 @@ pipeline {
       }
     }
 
-    stage('Deploy to K8s (server YAML under /root)') {
+    stage('Deploy to K8s (server manifests)') {
       when { anyOf { branch 'develop'; branch 'main' } }
       agent any
       steps {
         sshagent (credentials: [env.SSH_CRED_ID]) {
           withCredentials([usernamePassword(credentialsId: env.READ_CRED_ID, usernameVariable: 'PULL_USER', passwordVariable: 'PULL_PASS')]) {
-            sh '''
-    set -eux
-    ssh -o StrictHostKeyChecking=no -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-      PULL_USER="$PULL_USER" \
-      PULL_PASS="$PULL_PASS" \
+            sh """
+    set -eu
+    # 비밀 마스킹
+    set +x
+    ssh -o StrictHostKeyChecking=no -p "${env.DEPLOY_PORT}" \
+      "${env.DEPLOY_USER}@${env.DEPLOY_HOST}" \
+      APP="${env.APP_NAME}" \
+      NS="hobom-api-gateway-latest" \
+      PULL_USER="${PULL_USER}" \
+      PULL_PASS="${PULL_PASS}" \
+      IMAGE="${env.IMAGE_TAG}" \
       bash -s <<'EOS'
     set -euo pipefail
 
-    KCFG="$HOME/.kube/config"
-    NS="hobom-api-gateway-latest"
-    APP="hobom-api-gateway"
-    DIR="/home/infra-admin/k3s/config/${APP}"
-    DEPLOY_YAML="${DIR}/${APP}-deployment-dev.yaml"
-    HPA_YAML="${DIR}/${APP}-hpa.yaml"
+    APP="\${APP:-hobom-api-gateway}"
+    NS="\${NS:-hobom-api-gateway-latest}"
+    KCFG="\$HOME/.kube/config"
 
-    # namespace
-    kubectl --kubeconfig "$KCFG" get ns "$NS" >/dev/null 2>&1 || \
-    kubectl --kubeconfig "$KCFG" create ns "$NS"
+    # 매니페스트 경로: /root 대신 사용자 읽기 가능 경로 사용
+    ROOT_DIR="/root/k3s/config/\${APP}"
+    USER_DIR="\$HOME/k3s/config/\${APP}"
+    mkdir -p "\$USER_DIR"
 
-    # docker hub pull
-    kubectl --kubeconfig "$KCFG" -n "$NS" delete secret dockerhub-pull >/dev/null 2>&1 || true
-    kubectl --kubeconfig "$KCFG" -n "$NS" create secret docker-registry dockerhub-pull \
-      --docker-server=index.docker.io \
-      --docker-username="$PULL_USER" \
-      --docker-password="$PULL_PASS" \
-      --docker-email="jjockrod@naver.com"
+    DEPLOY_FILE="\${APP}-deployment-dev.yaml"
+    HPA_FILE="\${APP}-hpa.yaml"
+    DEPLOY_YAML_ROOT="\${ROOT_DIR}/\${DEPLOY_FILE}"
+    HPA_YAML_ROOT="\${ROOT_DIR}/\${HPA_FILE}"
+    DEPLOY_YAML_USER="\${USER_DIR}/\${DEPLOY_FILE}"
+    HPA_YAML_USER="\${USER_DIR}/\${HPA_FILE}"
 
-    kubectl --kubeconfig "$KCFG" -n "$NS" patch serviceaccount default \
-      -p '{"imagePullSecrets":[{"name":"dockerhub-pull"}]}' --type=merge || true
-
-    # apply deploy
-    kubectl --kubeconfig "$KCFG" -n "$NS" apply -f "$DEPLOY_YAML"
-    kubectl --kubeconfig "$KCFG" -n "$NS" rollout status deploy/"$APP" --timeout=180s
-
-    if [ -f "$HPA_YAML" ]; then
-      echo "[INFO] Applying HPA: $HPA_YAML"
-      kubectl --kubeconfig "$KCFG" -n "$NS" apply -f "$HPA_YAML"
-      kubectl --kubeconfig "$KCFG" -n "$NS" get hpa
-    else
-      echo "[WARN] HPA yaml not found at $HPA_YAML (skip)"
+    # kubeconfig 준비(비번없는 sudo가 되면 자동 준비)
+    if [ ! -f "\$KCFG" ]; then
+      if sudo -n true 2>/dev/null; then
+        sudo mkdir -p "\$(dirname "\$KCFG")"
+        sudo cp /etc/rancher/k3s/k3s.yaml "\$KCFG"
+        sudo chown "\$USER":"\$USER" "\$KCFG"
+        echo "[INFO] kubeconfig prepared at \$KCFG"
+      else
+        echo "[ERROR] \$KCFG not found and passwordless sudo not available."
+        exit 1
+      fi
     fi
 
-    kubectl --kubeconfig "$KCFG" -n "$NS" get pods -o wide
+    # /root → 사용자 디렉토리로 복사 (읽기권한 회피)
+    copy_if_needed() {
+      local src="\$1" dst="\$2"
+      if [ -r "\$dst" ]; then return 0; fi
+      if [ -r "\$src" ]; then cp "\$src" "\$dst" && return 0; fi
+      if sudo -n test -r "\$src" 2>/dev/null; then
+        sudo cp "\$src" "\$dst"
+        sudo chown "\$USER":"\$USER" "\$dst"
+        return 0
+      fi
+      return 1
+    }
+    if ! copy_if_needed "\$DEPLOY_YAML_ROOT" "\$DEPLOY_YAML_USER"; then
+      echo "[ERROR] Cannot read \${DEPLOY_YAML_ROOT}. Move manifests out of /root."
+      exit 1
+    fi
+    copy_if_needed "\$HPA_YAML_ROOT" "\$HPA_YAML_USER" || true
+
+    # 네임스페이스
+    kubectl --kubeconfig "\$KCFG" get ns "\$NS" >/dev/null 2>&1 || \
+    kubectl --kubeconfig "\$KCFG" create ns "\$NS"
+
+    # Pull secret (idempotent) — 비밀 로그 마스킹
+    set +x
+    kubectl --kubeconfig "\$KCFG" -n "\$NS" create secret docker-registry dockerhub-pull \
+      --docker-server=index.docker.io \
+      --docker-username="\$PULL_USER" \
+      --docker-password="\$PULL_PASS" \
+      --docker-email="jjockrod@naver.com" \
+      --dry-run=client -o yaml | kubectl --kubeconfig "\$KCFG" -n "\$NS" apply -f -
+    set -x
+
+    # 매니페스트 적용
+    kubectl --kubeconfig "\$KCFG" -n "\$NS" apply -f "\$DEPLOY_YAML_USER"
+    # 디플로이먼트의 SA 이름을 확인(없으면 default)
+    SA=\$(kubectl --kubeconfig "\$KCFG" -n "\$NS" get deploy "\$APP" -o jsonpath='{.spec.template.spec.serviceAccountName}')
+    if [ -z "\$SA" ]; then SA=default; fi
+    # 해당 SA에 pull secret 연결
+    kubectl --kubeconfig "\$KCFG" -n "\$NS" patch serviceaccount "\$SA" \
+      -p '{"imagePullSecrets":[{"name":"dockerhub-pull"}]}' --type=merge || true
+
+    # 컨테이너 이름 자동 탐지 후, 이번 빌드 태그로 이미지 교체 (강제 롤아웃)
+    CN=\$(kubectl --kubeconfig "\$KCFG" -n "\$NS" get deploy "\$APP" -o jsonpath='{.spec.template.spec.containers[0].name}')
+    if [ -z "\$CN" ]; then CN="\$APP"; fi
+    kubectl --kubeconfig "\$KCFG" -n "\$NS" set image deployment/"\$APP" "\$CN=\$IMAGE" --record
+
+    # (선택) latest 태그를 쓰는 경우 대비 정책 보정
+    # kubectl --kubeconfig "\$KCFG" -n "\$NS" patch deploy "\$APP" --type='json' \
+    #   -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"Always"}]' || true
+
+    # 롤아웃 대기; 실패 시 디버그 덤프
+    set +e
+    kubectl --kubeconfig "\$KCFG" -n "\$NS" rollout status deploy/"\$APP" --timeout=180s
+    rc=\$?
+    if [ \$rc -ne 0 ]; then
+      echo "==== DEBUG: describe deploy ===="
+      kubectl --kubeconfig "\$KCFG" -n "\$NS" describe deploy "\$APP" || true
+      echo "==== DEBUG: rs list ===="
+      kubectl --kubeconfig "\$KCFG" -n "\$NS" get rs -o wide || true
+      echo "==== DEBUG: pods ===="
+      kubectl --kubeconfig "\$KCFG" -n "\$NS" get pods -o wide || true
+      echo "==== DEBUG: recent events ===="
+      kubectl --kubeconfig "\$KCFG" -n "\$NS" get events --sort-by=.lastTimestamp | tail -n 50 || true
+      # 첫 번째 문제 포드 로그
+      P=\$(kubectl --kubeconfig "\$KCFG" -n "\$NS" get pods -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+      if [ -n "\$P" ]; then
+        echo "==== DEBUG: logs (\$P) ===="
+        kubectl --kubeconfig "\$KCFG" -n "\$NS" logs "\$P" --tail=200 || true
+        echo "==== DEBUG: describe pod (\$P) ===="
+        kubectl --kubeconfig "\$KCFG" -n "\$NS" describe pod "\$P" || true
+      fi
+      exit \$rc
+    fi
+    set -e
+
+    # HPA 적용(있을 때만)
+    if [ -f "\$HPA_YAML_USER" ]; then
+      kubectl --kubeconfig "\$KCFG" -n "\$NS" apply -f "\$HPA_YAML_USER"
+      kubectl --kubeconfig "\$KCFG" -n "\$NS" get hpa
+    fi
+
+    kubectl --kubeconfig "\$KCFG" -n "\$NS" get pods -o wide
     EOS
-    '''
+    set -x
+    """
           }
         }
       }
     }
-  }
+
 
   post {
     success {
