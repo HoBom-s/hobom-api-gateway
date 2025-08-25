@@ -133,7 +133,6 @@ pipeline {
           }
         }
       }
-    }
 
   post {
     success {
