@@ -88,9 +88,10 @@ pipeline {
             sh '''
     set -eux
     ssh -o StrictHostKeyChecking=no -p "$DEPLOY_PORT" \
+      "$DEPLOY_USER@$DEPLOY_HOST" \
       PULL_USER="$PULL_USER" \
       PULL_PASS="$PULL_PASS" \
-      "$DEPLOY_USER@$DEPLOY_HOST" bash -s <<'EOS'
+      bash -s <<'EOS'
     set -euo pipefail
 
     KCFG="$HOME/.kube/config"
