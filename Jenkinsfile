@@ -25,33 +25,31 @@ pipeline {
   }
 
   stages {
-
-    stage('Build & Push (K8s + Kaniko)') {
+    stage('Build & Push (k3s + Kaniko)') {
       agent {
         kubernetes {
           yaml """
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-    - name: node
-      image: node:20
-      command: ["sh","-lc","sleep 9999999"]
-    - name: kaniko
-      image: gcr.io/kaniko-project/executor:debug
-      command: ["/busybox/sh","-c","sleep 9999999"]
-      volumeMounts:
-        - name: kaniko-docker-config
-          mountPath: /kaniko/.docker
-  volumes:
-    - name: kaniko-docker-config
-      emptyDir: {}
+  apiVersion: v1
+  kind: Pod
+  spec:
+    containers:
+      - name: node
+        image: node:20
+        command: ["sh","-lc","sleep 9999999"]
+      - name: kaniko
+        image: gcr.io/kaniko-project/executor:debug
+        command: ["/busybox/sh","-c","sleep 9999999"]
+        volumeMounts:
+          - name: kaniko-docker-config
+            mountPath: /kaniko/.docker
+    volumes:
+      - name: kaniko-docker-config
+        emptyDir: {}
           """
         }
       }
       steps {
         checkout scm
-
         container('node') {
           sh '''
             set -eux
@@ -60,16 +58,14 @@ spec:
             npm run build
           '''
         }
-
         container('kaniko') {
           withCredentials([usernamePassword(credentialsId: env.REGISTRY_CRED, usernameVariable: 'REG_USER', passwordVariable: 'REG_PASS')]) {
             sh '''
               set -eux
               AUTH="$(printf '%s' "$REG_USER:$REG_PASS" | base64 -w0 2>/dev/null || printf '%s' "$REG_USER:$REG_PASS" | base64)"
               cat > /kaniko/.docker/config.json <<CFG
-{ "auths": { "https://index.docker.io/v1/": { "auth": "$AUTH" } } }
-CFG
-
+  { "auths": { "https://index.docker.io/v1/": { "auth": "$AUTH" } } }
+  CFG
               /kaniko/executor \
                 --context "$WORKSPACE" \
                 --dockerfile "$WORKSPACE/Dockerfile" \
@@ -83,73 +79,61 @@ CFG
       }
     }
 
-    stage('Deploy container to server') {
+    stage('Deploy to K8s (server YAML under /root)') {
       when { anyOf { branch 'develop'; branch 'main' } }
       agent any
       steps {
         sshagent (credentials: [env.SSH_CRED_ID]) {
           withCredentials([usernamePassword(credentialsId: env.READ_CRED_ID, usernameVariable: 'PULL_USER', passwordVariable: 'PULL_PASS')]) {
             sh '''
-set -eux
+    set -eux
+    ssh -o StrictHostKeyChecking=no -p "$DEPLOY_PORT" \
+      PULL_USER="$PULL_USER" \
+      PULL_PASS="$PULL_PASS" \
+      "$DEPLOY_USER@$DEPLOY_HOST" bash -s <<'EOS'
+    set -euo pipefail
 
-ssh -o StrictHostKeyChecking=no -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-  APP_NAME="$APP_NAME" \
-  IMAGE="$IMAGE_LATEST" \
-  CONTAINER="$APP_NAME" \
-  ENV_PATH="/etc/$APP_NAME/.env" \
-  HOST_PORT="9090" \
-  CONTAINER_PORT="9090" \
-  PULL_USER="$PULL_USER" \
-  PULL_PASS="$PULL_PASS" \
-  bash -s <<'EOS'
-set -euo pipefail
-echo "[REMOTE] Deploying $APP_NAME with image $IMAGE"
+    KCFG="$HOME/.kube/config"
+    NS="hobom-api-gateway-latest"
+    APP="hobom-api-gateway"
+    DIR="/root/k3s/config/${APP}"
+    DEPLOY_YAML="${DIR}/${APP}-deployment-dev.yaml"
+    HPA_YAML="${DIR}/${APP}-hpa.yaml"
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "[REMOTE][ERROR] docker not found. Install docker and add $USER to docker group."
-  exit 1
-fi
+    # namespace
+    sudo -E kubectl --kubeconfig "$KCFG" get ns "$NS" >/dev/null 2>&1 || \
+    sudo -E kubectl --kubeconfig "$KCFG" create ns "$NS"
 
-echo "$PULL_PASS" | docker login docker.io -u "$PULL_USER" --password-stdin
+    # docker hub pull
+    sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" delete secret dockerhub-pull >/dev/null 2>&1 || true
+    sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" create secret docker-registry dockerhub-pull \
+      --docker-server=index.docker.io \
+      --docker-username="$PULL_USER" \
+      --docker-password="$PULL_PASS" \
+      --docker-email="jjockrod@naver.com"
 
-if [ ! -f "$ENV_PATH" ]; then
-  echo "[REMOTE][ERROR] $ENV_PATH not found. Create it first."
-  exit 1
-fi
+    sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" patch serviceaccount default \
+      -p '{"imagePullSecrets":[{"name":"dockerhub-pull"}]}' --type=merge || true
 
-docker pull "$IMAGE"
-if docker ps -a --format '{{.Names}}' | grep -w "$CONTAINER" >/dev/null 2>&1; then
-  docker stop "$CONTAINER" || true
-  docker rm "$CONTAINER" || true
-fi
+    # apply deploy
+    sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" apply -f "$DEPLOY_YAML"
+    sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" rollout status deploy/"$APP" --timeout=180s
 
-docker run -d --name "$CONTAINER" \
-  --restart unless-stopped \
-  --env-file "$ENV_PATH" \
-  -e PORT="${CONTAINER_PORT}" \
-  -p "${HOST_PORT}:${CONTAINER_PORT}" \
-  "$IMAGE"
+    if [ -f "$HPA_YAML" ]; then
+      echo "[INFO] Applying HPA: $HPA_YAML"
+      sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" apply -f "$HPA_YAML"
+      sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" get hpa
+    else
+      echo "[WARN] HPA yaml not found at $HPA_YAML (skip)"
+    fi
 
-docker ps --filter "name=$CONTAINER" --format "table {{.Names}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}"
-EOS
-            '''
+    sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" get pods -o wide
+    EOS
+    '''
           }
         }
       }
     }
-
-    stage('Smoke check (optional)') {
-      when { anyOf { branch 'develop'; branch 'main' } }
-      agent any
-      steps {
-        sshagent (credentials: [env.SSH_CRED_ID]) {
-          sh """
-            ssh -o StrictHostKeyChecking=no -p ${env.DEPLOY_PORT} ${env.DEPLOY_USER}@${env.DEPLOY_HOST} 'curl -fsS http://localhost:9090/api-docs || true'
-          """
-        }
-      }
-    }
-  }
 
   post {
     success {
