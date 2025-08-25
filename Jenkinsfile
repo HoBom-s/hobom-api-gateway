@@ -87,8 +87,7 @@ pipeline {
           withCredentials([usernamePassword(credentialsId: env.READ_CRED_ID, usernameVariable: 'PULL_USER', passwordVariable: 'PULL_PASS')]) {
             sh '''
     set -eux
-    ssh -o StrictHostKeyChecking=no -p "$DEPLOY_PORT" \
-      "$DEPLOY_USER@$DEPLOY_HOST" \
+    ssh -o StrictHostKeyChecking=no -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
       PULL_USER="$PULL_USER" \
       PULL_PASS="$PULL_PASS" \
       bash -s <<'EOS'
