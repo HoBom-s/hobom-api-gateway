@@ -156,10 +156,6 @@ pipeline {
       --dry-run=client -o yaml | kubectl --kubeconfig "\$KCFG" -n "\$NS" apply -f -
     set -x
 
-    # 해당 SA에 pull secret 연결
-    kubectl --kubeconfig "\$KCFG" -n "\$NS" patch serviceaccount "\$SA" \
-      -p '{"imagePullSecrets":[{"name":"dockerhub-pull"}]}' --type=merge || true
-
     # 컨테이너 이름 자동 탐지 후, 이번 빌드 태그로 이미지 교체 (강제 롤아웃)
     CN=\$(kubectl --kubeconfig "\$KCFG" -n "\$NS" get deploy "\$APP" -o jsonpath='{.spec.template.spec.containers[0].name}')
     if [ -z "\$CN" ]; then CN="\$APP"; fi
