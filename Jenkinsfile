@@ -146,10 +146,6 @@ pipeline {
     fi
     copy_if_needed "\$HPA_YAML_ROOT" "\$HPA_YAML_USER" || true
 
-    # 네임스페이스
-    kubectl --kubeconfig "\$KCFG" get ns "\$NS" >/dev/null 2>&1 || \
-    kubectl --kubeconfig "\$KCFG" create ns "\$NS"
-
     # Pull secret (idempotent) — 비밀 로그 마스킹
     set +x
     kubectl --kubeconfig "\$KCFG" -n "\$NS" create secret docker-registry dockerhub-pull \
