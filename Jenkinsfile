@@ -96,7 +96,7 @@ pipeline {
     KCFG="$HOME/.kube/config"
     NS="hobom-api-gateway-latest"
     APP="hobom-api-gateway"
-    DIR="/k3s/config/${APP}"
+    DIR="/home/infra-admin/k3s/config/${APP}"
     DEPLOY_YAML="${DIR}/${APP}-deployment-dev.yaml"
     HPA_YAML="${DIR}/${APP}-hpa.yaml"
 
