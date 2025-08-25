@@ -113,8 +113,8 @@ ssh -o StrictHostKeyChecking=no -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
   IMAGE="$IMAGE_LATEST" \
   CONTAINER="$APP_NAME" \
   ENV_PATH="/etc/$APP_NAME/.env" \
-  HOST_PORT="8080" \
-  CONTAINER_PORT="8080" \
+  HOST_PORT="9090" \
+  CONTAINER_PORT="9090" \
   PULL_USER="$PULL_USER" \
   PULL_PASS="$PULL_PASS" \
   bash -s <<'EOS'
