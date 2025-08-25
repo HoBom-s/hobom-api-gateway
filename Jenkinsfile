@@ -156,11 +156,6 @@ pipeline {
       --dry-run=client -o yaml | kubectl --kubeconfig "\$KCFG" -n "\$NS" apply -f -
     set -x
 
-    # 매니페스트 적용
-    kubectl --kubeconfig "\$KCFG" -n "\$NS" apply -f "\$DEPLOY_YAML_USER"
-    # 디플로이먼트의 SA 이름을 확인(없으면 default)
-    SA=\$(kubectl --kubeconfig "\$KCFG" -n "\$NS" get deploy "\$APP" -o jsonpath='{.spec.template.spec.serviceAccountName}')
-    if [ -z "\$SA" ]; then SA=default; fi
     # 해당 SA에 pull secret 연결
     kubectl --kubeconfig "\$KCFG" -n "\$NS" patch serviceaccount "\$SA" \
       -p '{"imagePullSecrets":[{"name":"dockerhub-pull"}]}' --type=merge || true
