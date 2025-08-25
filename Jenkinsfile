@@ -101,33 +101,33 @@ pipeline {
     HPA_YAML="${DIR}/${APP}-hpa.yaml"
 
     # namespace
-    sudo -E kubectl --kubeconfig "$KCFG" get ns "$NS" >/dev/null 2>&1 || \
-    sudo -E kubectl --kubeconfig "$KCFG" create ns "$NS"
+    kubectl --kubeconfig "$KCFG" get ns "$NS" >/dev/null 2>&1 || \
+    kubectl --kubeconfig "$KCFG" create ns "$NS"
 
     # docker hub pull
-    sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" delete secret dockerhub-pull >/dev/null 2>&1 || true
-    sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" create secret docker-registry dockerhub-pull \
+    kubectl --kubeconfig "$KCFG" -n "$NS" delete secret dockerhub-pull >/dev/null 2>&1 || true
+    kubectl --kubeconfig "$KCFG" -n "$NS" create secret docker-registry dockerhub-pull \
       --docker-server=index.docker.io \
       --docker-username="$PULL_USER" \
       --docker-password="$PULL_PASS" \
       --docker-email="jjockrod@naver.com"
 
-    sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" patch serviceaccount default \
+    kubectl --kubeconfig "$KCFG" -n "$NS" patch serviceaccount default \
       -p '{"imagePullSecrets":[{"name":"dockerhub-pull"}]}' --type=merge || true
 
     # apply deploy
-    sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" apply -f "$DEPLOY_YAML"
-    sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" rollout status deploy/"$APP" --timeout=180s
+    kubectl --kubeconfig "$KCFG" -n "$NS" apply -f "$DEPLOY_YAML"
+    kubectl --kubeconfig "$KCFG" -n "$NS" rollout status deploy/"$APP" --timeout=180s
 
     if [ -f "$HPA_YAML" ]; then
       echo "[INFO] Applying HPA: $HPA_YAML"
-      sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" apply -f "$HPA_YAML"
-      sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" get hpa
+      kubectl --kubeconfig "$KCFG" -n "$NS" apply -f "$HPA_YAML"
+      kubectl --kubeconfig "$KCFG" -n "$NS" get hpa
     else
       echo "[WARN] HPA yaml not found at $HPA_YAML (skip)"
     fi
 
-    sudo -E kubectl --kubeconfig "$KCFG" -n "$NS" get pods -o wide
+    kubectl --kubeconfig "$KCFG" -n "$NS" get pods -o wide
     EOS
     '''
           }
