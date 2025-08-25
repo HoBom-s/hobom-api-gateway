@@ -92,7 +92,7 @@ pipeline {
     ssh -o StrictHostKeyChecking=no -p "${env.DEPLOY_PORT}" \
       "${env.DEPLOY_USER}@${env.DEPLOY_HOST}" \
       APP="${env.APP_NAME}" \
-      NS="hobom-api-gateway-latest" \
+      NS="dev" \
       PULL_USER="${PULL_USER}" \
       PULL_PASS="${PULL_PASS}" \
       IMAGE="${env.IMAGE_TAG}" \
