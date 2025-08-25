@@ -178,31 +178,6 @@ pipeline {
     # kubectl --kubeconfig "\$KCFG" -n "\$NS" patch deploy "\$APP" --type='json' \
     #   -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"Always"}]' || true
 
-    # 롤아웃 대기; 실패 시 디버그 덤프
-    set +e
-    kubectl --kubeconfig "\$KCFG" -n "\$NS" rollout status deploy/"\$APP" --timeout=180s
-    rc=\$?
-    if [ \$rc -ne 0 ]; then
-      echo "==== DEBUG: describe deploy ===="
-      kubectl --kubeconfig "\$KCFG" -n "\$NS" describe deploy "\$APP" || true
-      echo "==== DEBUG: rs list ===="
-      kubectl --kubeconfig "\$KCFG" -n "\$NS" get rs -o wide || true
-      echo "==== DEBUG: pods ===="
-      kubectl --kubeconfig "\$KCFG" -n "\$NS" get pods -o wide || true
-      echo "==== DEBUG: recent events ===="
-      kubectl --kubeconfig "\$KCFG" -n "\$NS" get events --sort-by=.lastTimestamp | tail -n 50 || true
-      # 첫 번째 문제 포드 로그
-      P=\$(kubectl --kubeconfig "\$KCFG" -n "\$NS" get pods -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-      if [ -n "\$P" ]; then
-        echo "==== DEBUG: logs (\$P) ===="
-        kubectl --kubeconfig "\$KCFG" -n "\$NS" logs "\$P" --tail=200 || true
-        echo "==== DEBUG: describe pod (\$P) ===="
-        kubectl --kubeconfig "\$KCFG" -n "\$NS" describe pod "\$P" || true
-      fi
-      exit \$rc
-    fi
-    set -e
-
     # HPA 적용(있을 때만)
     if [ -f "\$HPA_YAML_USER" ]; then
       kubectl --kubeconfig "\$KCFG" -n "\$NS" apply -f "\$HPA_YAML_USER"
