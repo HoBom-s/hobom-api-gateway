@@ -22,8 +22,6 @@ export class ProxyController {
       req.originalUrl,
       this.hostMap,
     );
-    console.log(`origin: ${req.originalUrl}`);
-    console.log(`target: ${targetUrl}`);
 
     if (targetUrl == null) {
       return res.status(HttpStatus.NOT_FOUND).json({
