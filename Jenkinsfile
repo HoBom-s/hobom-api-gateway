@@ -10,14 +10,14 @@ pipeline {
     // Docker Hub
     REGISTRY      = 'docker.io'
     IMAGE_REPO    = 'jjockrod/hobom-system'
-    SERVICE_NAME  = 'hobom-api-gateway'
+    SERVICE_NAME  = 'dev-hobom-api-gateway'
     IMAGE_TAG     = "${REGISTRY}/${IMAGE_REPO}:${SERVICE_NAME}-${env.BUILD_NUMBER}"
     IMAGE_LATEST  = "${REGISTRY}/${IMAGE_REPO}:${SERVICE_NAME}-latest"
     REGISTRY_CRED = 'dockerhub-cred'          // Docker Hub (push)
     READ_CRED_ID  = 'dockerhub-readonly'      // Remote pull (private)
 
     // Remote server
-    APP_NAME      = 'hobom-api-gateway'
+    APP_NAME      = 'dev-hobom-api-gateway'
     DEPLOY_HOST   = 'ishisha.iptime.org'
     DEPLOY_PORT   = '22223'
     DEPLOY_USER   = 'infra-admin'
@@ -112,7 +112,7 @@ ssh -o StrictHostKeyChecking=no -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
   APP_NAME="$APP_NAME" \
   IMAGE="$IMAGE_LATEST" \
   CONTAINER="$APP_NAME" \
-  ENV_PATH="/etc/$APP_NAME/.env" \
+  ENV_PATH="/etc/hobom-dev/$APP_NAME/.env" \
   HOST_PORT="9090" \
   CONTAINER_PORT="9090" \
   PULL_USER="$PULL_USER" \

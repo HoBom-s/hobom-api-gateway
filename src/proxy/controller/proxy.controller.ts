@@ -7,6 +7,7 @@ import { EndPointUtil } from "../../shared/end-point/end-point.util";
 export class ProxyController {
   private readonly hostMap: Record<string, string> = {
     "hobom-system-backend": String(process.env.HOBOM_API_SERVER_HOST),
+    "hobom-internal": String(process.env.HOBOM_INTERNAL_API_SERVER_HOST),
   };
 
   constructor(private readonly proxyService: ProxyService) {}
