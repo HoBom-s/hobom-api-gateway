@@ -143,7 +143,9 @@ if docker ps -a --format '{{.Names}}' | grep -w "$CONTAINER" >/dev/null 2>&1; th
   docker rm "$CONTAINER" || true
 fi
 
+docker network create hobom-net || true
 docker run -d --name "$CONTAINER" \
+  --network hobom-net \
   --restart unless-stopped \
   --env-file "$ENV_PATH" \
   -p "${HOST_PORT}:${CONTAINER_PORT}" \
