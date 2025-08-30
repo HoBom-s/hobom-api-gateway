@@ -1,5 +1,5 @@
 pipeline {
-  agent none
+  agent any
 
   options {
     timestamps()
@@ -13,8 +13,8 @@ pipeline {
     SERVICE_NAME  = 'dev-hobom-api-gateway'
     IMAGE_TAG     = "${REGISTRY}/${IMAGE_REPO}:${SERVICE_NAME}-${env.BUILD_NUMBER}"
     IMAGE_LATEST  = "${REGISTRY}/${IMAGE_REPO}:${SERVICE_NAME}-latest"
-    REGISTRY_CRED = 'dockerhub-cred'          // Docker Hub (push)
-    READ_CRED_ID  = 'dockerhub-readonly'      // Remote pull (private)
+    REGISTRY_CRED = 'dockerhub-cred'      // Docker Hub (push)
+    READ_CRED_ID  = 'dockerhub-readonly'  // Remote pull (private)
 
     // Remote server
     APP_NAME      = 'dev-hobom-api-gateway'
@@ -22,86 +22,49 @@ pipeline {
     DEPLOY_PORT   = '22223'
     DEPLOY_USER   = 'infra-admin'
     SSH_CRED_ID   = 'deploy-ssh-key'
+
+    // App runtime
+    ENV_PATH      = '/etc/hobom-dev/dev-hobom-api-gateway/.env'
+    HOST_PORT     = '9090'
+    CONTAINER_PORT= '9090'
   }
 
   stages {
-    stage('Build & Push (K8s + Kaniko)') {
-      agent {
-        kubernetes {
-          yaml """
-            apiVersion: v1
-            kind: Pod
-            spec:
-              containers:
-                - name: node
-                  image: node:20
-                  # bash 없는 이미지 대비 sh 로 대기
-                  command: ["sh", "-lc", "sleep 9999999"]
-                - name: kaniko
-                  image: gcr.io/kaniko-project/executor:debug
-                  command: ["/busybox/sh", "-c", "sleep 9999999"]
-                  volumeMounts:
-                    - name: kaniko-docker-config
-                      mountPath: /kaniko/.docker
-              volumes:
-                - name: kaniko-docker-config
-                  emptyDir: {}
-          """
-        }
-      }
+
+    stage('Build (Node)') {
       steps {
-        // checkout 은 기본 jnlp 컨테이너에서 수행 (보통 git 포함)
         checkout scm
-
-        container('node') {
-          sh '''
+        sh '''
+          set -eux
+          docker run --rm -v "$WORKSPACE":/app -w /app node:20 sh -lc '
             set -eux
-
-            if command -v apt-get >/dev/null 2>&1; then
-              apt-get update && apt-get install -y git
-            fi
-
-            # Jenkins workspace git
-            git config --global --add safe.directory "$WORKSPACE"
-
-            # git submodule path
-            git config --global --add safe.directory "$WORKSPACE/*"
-
-            git submodule sync --recursive
-            git submodule update --init --recursive
-
-            node -v
             npm ci
             npm run build
+          '
+        '''
+      }
+    }
+
+    stage('Build & Push Image (Docker)') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: env.REGISTRY_CRED, usernameVariable: 'REG_USER', passwordVariable: 'REG_PASS')]) {
+          sh '''
+            set -eu
+            export DOCKER_BUILDKIT=1
+            set +x
+            echo "$REG_PASS" | docker login "$REGISTRY" -u "$REG_USER" --password-stdin
+            set -x
+
+            docker build -t "${IMAGE_TAG}" -t "${IMAGE_LATEST}" .
+            docker push "${IMAGE_TAG}"
+            docker push "${IMAGE_LATEST}"
           '''
-        }
-
-        container('kaniko') {
-          withCredentials([usernamePassword(credentialsId: env.REGISTRY_CRED, usernameVariable: 'REG_USER', passwordVariable: 'REG_PASS')]) {
-            sh '''
-              set -eux
-              # base64 옵션 차이(-w0) 대응
-              AUTH="$(printf '%s' "$REG_USER:$REG_PASS" | base64 -w0 2>/dev/null || printf '%s' "$REG_USER:$REG_PASS" | base64)"
-              cat > /kaniko/.docker/config.json <<CFG
-              { "auths": { "https://index.docker.io/v1/": { "auth": "$AUTH" } } }
-CFG
-
-              /kaniko/executor \
-                --context "$WORKSPACE" \
-                --dockerfile "$WORKSPACE/Dockerfile" \
-                --destination "${IMAGE_TAG}" \
-                --destination "${IMAGE_LATEST}" \
-                --cache=true \
-                --verbosity=info
-            '''
-          }
         }
       }
     }
 
     stage('Deploy container to server') {
       when { anyOf { branch 'develop'; branch 'main' } }
-      agent any
       steps {
         sshagent (credentials: [env.SSH_CRED_ID]) {
           withCredentials([usernamePassword(credentialsId: env.READ_CRED_ID, usernameVariable: 'PULL_USER', passwordVariable: 'PULL_PASS')]) {
@@ -112,16 +75,16 @@ ssh -o StrictHostKeyChecking=no -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
   APP_NAME="$APP_NAME" \
   IMAGE="$IMAGE_LATEST" \
   CONTAINER="$APP_NAME" \
-  ENV_PATH="/etc/hobom-dev/$APP_NAME/.env" \
-  HOST_PORT="9090" \
-  CONTAINER_PORT="9090" \
+  ENV_PATH="$ENV_PATH" \
+  HOST_PORT="$HOST_PORT" \
+  CONTAINER_PORT="$CONTAINER_PORT" \
   PULL_USER="$PULL_USER" \
   PULL_PASS="$PULL_PASS" \
   bash -s <<'EOS'
 set -euo pipefail
 echo "[REMOTE] Deploying $APP_NAME with image $IMAGE"
 
-# docker 설치/권한은 사전에 구성되어 있다고 가정 (sudo 없이)
+# docker 설치/권한 체크
 if ! command -v docker >/dev/null 2>&1; then
   echo "[REMOTE][ERROR] docker not found. Install docker and add $USER to docker group."
   exit 1
@@ -137,7 +100,8 @@ if [ ! -f "$ENV_PATH" ]; then
 fi
 
 # 최신 이미지 pull + 컨테이너 교체
-docker pull "$IMAGE"
+docker pull "$IMAGE" || (echo "[REMOTE][ERROR] docker pull failed" && exit 1)
+
 if docker ps -a --format '{{.Names}}' | grep -w "$CONTAINER" >/dev/null 2>&1; then
   docker stop "$CONTAINER" || true
   docker rm "$CONTAINER" || true
@@ -153,7 +117,7 @@ docker run -d --name "$CONTAINER" \
 
 docker ps --filter "name=$CONTAINER" --format "table {{.Names}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}"
 EOS
-    '''
+            '''
           }
         }
       }
@@ -161,11 +125,12 @@ EOS
 
     stage('Smoke check (optional)') {
       when { anyOf { branch 'develop'; branch 'main' } }
-      agent any
       steps {
         sshagent (credentials: [env.SSH_CRED_ID]) {
           sh """
-            ssh -o StrictHostKeyChecking=no -p ${env.DEPLOY_PORT} ${env.DEPLOY_USER}@${env.DEPLOY_HOST} 'curl -fsS http://localhost:8080/ || true'
+            ssh -o StrictHostKeyChecking=no -p ${env.DEPLOY_PORT} ${env.DEPLOY_USER}@${env.DEPLOY_HOST} '
+              curl -fsS http://localhost:${env.HOST_PORT}/ || true
+            '
           """
         }
       }
@@ -174,7 +139,7 @@ EOS
 
   post {
     success {
-      echo "✅ Build #${env.BUILD_NUMBER} → pushed ${env.IMAGE_LATEST} & deployed on ${env.DEPLOY_HOST}"
+      echo "✅ Build #${env.BUILD_NUMBER} → pushed ${env.IMAGE_TAG} & deployed on ${env.DEPLOY_HOST}"
     }
     failure {
       echo "❌ Build failed (${env.BRANCH_NAME})"
