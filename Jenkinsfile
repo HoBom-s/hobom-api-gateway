@@ -36,11 +36,19 @@ pipeline {
         checkout scm
         sh '''
           set -eux
-          docker run --rm -v "$WORKSPACE":/app -w /app node:20 sh -lc '
-            set -eux
-            npm ci
-            npm run build
-          '
+          UID=$(id -u)
+          GID=$(id -g)
+
+          docker run --rm \
+            --user "$UID:$GID" \
+            -e HOME=/tmp \
+            -v "$WORKSPACE":/app \
+            -w /app \
+            node:20 sh -lc '
+              set -eux
+              npm ci
+              npm run build
+            '
         '''
       }
     }
