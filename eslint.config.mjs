@@ -26,26 +26,24 @@ export default tseslint.config(
   },
   {
     rules: {
-      "@typescript-eslint/no-explicit-any": "off",
-      "@typescript-eslint/no-floating-promises": "off",
-      "@typescript-eslint/unbound-method": "off",
+      // `any` 사용 시 경고. 타입 안전성이 필요한 경우 `unknown` + 타입 가드로 대체하거나
+      // 불가피한 경우 eslint-disable 주석과 이유를 명시할 것.
+      "@typescript-eslint/no-explicit-any": "warn",
 
-      // class 혹은 function 의 arguments 에 접근할 때,
-      // 충분히 사용할 때 주의하여 사용할 수 있으므로 `off` 하도록 한다.
-      "@typescript-eslint/no-unsafe-argument": "off",
-      "@typescript-eslint/no-unsafe-member-access": "off",
-
-      // 제네릭을 리턴해야 하는 경우가 충분히 존재할 수 있으므로
-      // 해당 옵션은 `off` 하도록 한다.
-      "@typescript-eslint/no-unsafe-return": "off",
-
-      // 데코레이터를 사용할때 그다지 도움이 되지 않는 옵션이므로
-      // 해당 옵션은 `off` 하도록 한다.
+      // NestJS 데코레이터(@Injectable, @Controller 등)에서 오탐이 많으므로 비활성화.
       "@typescript-eslint/no-unsafe-call": "off",
       "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/unbound-method": "off",
+      "@typescript-eslint/no-floating-promises": "off",
       "@typescript-eslint/prefer-promise-reject-errors": "off",
 
-      // _ 인 경우에는 사용하지 않는 변수인 것으로 간주하도록 한다.
+      // 빌드를 깨지 않으면서 점진적으로 타입 안전성을 강화하기 위해 경고 수준으로 유지.
+      // 향후 코드베이스 안정화 시 "error"로 격상할 것.
+      "@typescript-eslint/no-unsafe-member-access": "warn",
+      "@typescript-eslint/no-unsafe-return": "warn",
+      "@typescript-eslint/no-unsafe-argument": "warn",
+
+      // _ 접두사 변수/인자는 의도적으로 미사용임을 나타낸다.
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {
