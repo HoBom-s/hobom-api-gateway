@@ -6,6 +6,7 @@ import {
   Logger,
 } from "@nestjs/common";
 import { tap } from "rxjs";
+import { Request, Response } from "express";
 import { TraceContext } from "../trace/trace-context";
 
 @Injectable()
@@ -15,17 +16,27 @@ export class TraceInterceptor implements NestInterceptor {
   constructor(private readonly traceContext: TraceContext) {}
 
   intercept(context: ExecutionContext, next: CallHandler) {
-    const req = context.switchToHttp().getRequest();
-    const method = req.method;
-    const url = req.originalUrl;
+    const req = context.switchToHttp().getRequest<Request>();
+    const res = context.switchToHttp().getResponse<Response>();
+    const { method, originalUrl: url } = req;
     const startTime = Date.now();
 
     return next.handle().pipe(
-      tap(() => {
-        const duration = Date.now() - startTime;
-        const traceId = this.traceContext.getTraceId();
-
-        this.logger.log(`[${traceId}] ${method} ${url} - ${duration}ms`);
+      tap({
+        next: () => {
+          const traceId = this.traceContext.getTraceId();
+          const duration = Date.now() - startTime;
+          this.logger.log(
+            `[${traceId}] ${method} ${url} ${res.statusCode} - ${duration}ms`,
+          );
+        },
+        error: (err: Error) => {
+          const traceId = this.traceContext.getTraceId();
+          const duration = Date.now() - startTime;
+          this.logger.error(
+            `[${traceId}] ${method} ${url} ERROR - ${duration}ms — ${err.message}`,
+          );
+        },
       }),
     );
   }
