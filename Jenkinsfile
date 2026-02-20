@@ -4,17 +4,20 @@ pipeline {
   options {
     timestamps()
     disableConcurrentBuilds()
+    skipDefaultCheckout(true)
   }
 
   environment {
+    WORKDIR       = '/var/lib/jenkins/workspace-clean/dev-hobom-api-gateway_develop'
+
     // Docker Hub
     REGISTRY      = 'docker.io'
     IMAGE_REPO    = 'jjockrod/hobom-system'
     SERVICE_NAME  = 'dev-hobom-api-gateway'
     IMAGE_TAG     = "${REGISTRY}/${IMAGE_REPO}:${SERVICE_NAME}-${env.BUILD_NUMBER}"
     IMAGE_LATEST  = "${REGISTRY}/${IMAGE_REPO}:${SERVICE_NAME}-latest"
-    REGISTRY_CRED = 'dockerhub-cred'      // Docker Hub (push)
-    READ_CRED_ID  = 'dockerhub-readonly'  // Remote pull (private)
+    REGISTRY_CRED = 'dockerhub-cred'
+    READ_CRED_ID  = 'dockerhub-readonly'
 
     // Remote server
     APP_NAME      = 'dev-hobom-api-gateway'
@@ -30,35 +33,54 @@ pipeline {
   }
 
   stages {
+    stage('Checkout') {
+      steps {
+        dir(env.WORKDIR) {
+          deleteDir()
+          checkout scm
+        }
+      }
+    }
 
     stage('Build (Node)') {
       steps {
-        checkout scm
-        sh '''
-          set -eux
-          docker run --rm -v "$WORKSPACE":/app -w /app node:20 sh -lc '
+        dir(env.WORKDIR) {
+          sh '''
             set -eux
-            npm ci
-            npm run build
-          '
-        '''
+            UID=$(id -u)
+            GID=$(id -g)
+
+            docker run --rm \
+              --user "$UID:$GID" \
+              -e HOME=/tmp \
+              -v "$PWD":/app \
+              -w /app \
+              node:20 sh -lc '
+                set -eux
+                npm ci
+                npm run build
+              '
+          '''
+        }
       }
     }
 
     stage('Build & Push Image (Docker)') {
       steps {
-        withCredentials([usernamePassword(credentialsId: env.REGISTRY_CRED, usernameVariable: 'REG_USER', passwordVariable: 'REG_PASS')]) {
-          sh '''
-            set -eu
-            export DOCKER_BUILDKIT=1
-            set +x
-            echo "$REG_PASS" | docker login "$REGISTRY" -u "$REG_USER" --password-stdin
-            set -x
+        dir(env.WORKDIR) {
+          withCredentials([usernamePassword(credentialsId: env.REGISTRY_CRED, usernameVariable: 'REG_USER', passwordVariable: 'REG_PASS')]) {
+            sh '''
+              set -eu
+              export DOCKER_BUILDKIT=1
+              set +x
+              echo "$REG_PASS" | docker login "$REGISTRY" -u "$REG_USER" --password-stdin
+              set -x
 
-            docker build -t "${IMAGE_TAG}" -t "${IMAGE_LATEST}" .
-            docker push "${IMAGE_TAG}"
-            docker push "${IMAGE_LATEST}"
-          '''
+              docker build -t "${IMAGE_TAG}" -t "${IMAGE_LATEST}" .
+              docker push "${IMAGE_TAG}"
+              docker push "${IMAGE_LATEST}"
+            '''
+          }
         }
       }
     }
@@ -84,22 +106,18 @@ ssh -o StrictHostKeyChecking=no -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
 set -euo pipefail
 echo "[REMOTE] Deploying $APP_NAME with image $IMAGE"
 
-# docker 설치/권한 체크
 if ! command -v docker >/dev/null 2>&1; then
-  echo "[REMOTE][ERROR] docker not found. Install docker and add $USER to docker group."
+  echo "[REMOTE][ERROR] docker not found."
   exit 1
 fi
 
-# private pull 로그인
 echo "$PULL_PASS" | docker login docker.io -u "$PULL_USER" --password-stdin
 
-# .env 확인
 if [ ! -f "$ENV_PATH" ]; then
-  echo "[REMOTE][ERROR] $ENV_PATH not found. Create it first."
+  echo "[REMOTE][ERROR] $ENV_PATH not found."
   exit 1
 fi
 
-# 최신 이미지 pull + 컨테이너 교체
 docker pull "$IMAGE" || (echo "[REMOTE][ERROR] docker pull failed" && exit 1)
 
 if docker ps -a --format '{{.Names}}' | grep -w "$CONTAINER" >/dev/null 2>&1; then

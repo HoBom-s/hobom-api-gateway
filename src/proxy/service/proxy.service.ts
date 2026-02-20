@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { Request, Response } from "express";
 import { firstValueFrom, tap } from "rxjs";
@@ -10,6 +10,8 @@ import { CircuitBreakerService } from "../../shared/circuit-breaker/circuit-brea
 
 @Injectable()
 export class ProxyService {
+  private readonly logger = new Logger(ProxyService.name);
+
   constructor(
     private readonly httpService: HttpService,
     private readonly headerBuilder: HeaderBuilder,
@@ -49,7 +51,11 @@ export class ProxyService {
       if (error instanceof AxiosError) {
         this.errorForwarderBuilder.build(error, res);
       } else {
-        // Circuit breaker open or unexpected error
+        // 서킷브레이커 OPEN 또는 예상치 못한 에러
+        this.logger.error(
+          `[Proxy] Non-Axios error for ${serviceKey}: ${(error as Error)?.message ?? String(error)}`,
+          (error as Error)?.stack,
+        );
         res
           .status(503)
           .json({ message: "Service temporarily unavailable. Please retry." });

@@ -9,8 +9,10 @@ export class HeaderBuilder {
     delete headers["content-length"];
     delete headers["transfer-encoding"];
 
+    // 쿠키 기반 토큰은 Authorization 헤더가 없을 때만 적용한다.
+    // 명시적으로 전달된 헤더가 쿠키보다 우선한다.
     const token = req.cookies?.["accessToken"];
-    if (token != null) {
+    if (token != null && headers["authorization"] == null) {
       headers["authorization"] = `Bearer ${token}`;
     }
 
