@@ -15,6 +15,7 @@ export class ResponseForwarderBuilder {
     }
 
     res.setHeader("access-control-allow-origin", req.headers.origin ?? "");
+    res.setHeader("access-control-allow-credentials", "true");
     res.status(axiosResponse.status);
 
     if (isReadable(axiosResponse.data)) {
