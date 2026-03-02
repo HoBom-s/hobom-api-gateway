@@ -1,9 +1,22 @@
 import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Request } from "express";
 
 @Injectable()
 export class HeaderBuilder {
-  public build(req: Request): Record<string, string> {
+  private readonly serviceApiKeys: Record<string, string>;
+
+  constructor(private readonly configService: ConfigService) {
+    this.serviceApiKeys = {
+      "hobom-internal":
+        this.configService.get<string>("HOBOM_INTERNAL_API_KEY") ?? "",
+    };
+  }
+
+  public build(
+    req: Request,
+    serviceKey?: string,
+  ): Record<string, string> {
     const headers = { ...req.headers };
     delete headers["host"];
     delete headers["content-length"];
@@ -19,6 +32,10 @@ export class HeaderBuilder {
     const token = req.cookies?.["accessToken"];
     if (token != null && headers["authorization"] == null) {
       headers["authorization"] = `Bearer ${token}`;
+    }
+
+    if (serviceKey && this.serviceApiKeys[serviceKey]) {
+      headers["x-api-key"] = this.serviceApiKeys[serviceKey];
     }
 
     return headers as Record<string, string>;

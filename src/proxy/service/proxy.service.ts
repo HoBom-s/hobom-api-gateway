@@ -29,7 +29,7 @@ export class ProxyService {
     url: string,
     serviceKey: string,
   ): Promise<void> {
-    const headers = this.headerBuilder.build(req);
+    const headers = this.headerBuilder.build(req, serviceKey);
 
     try {
       await this.circuitBreakerService.fire(serviceKey, () =>
