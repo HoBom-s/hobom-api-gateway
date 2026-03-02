@@ -118,6 +118,17 @@ export class CircuitBreakerService {
     }
   }
 
+  /**
+   * 응답 상태 코드 기반으로 수동 실패를 기록한다.
+   *
+   * 프록시는 모든 HTTP 응답을 스트리밍하므로 5xx도 Axios 에러로 잡히지 않는다.
+   * 응답 전달 후 이 메서드를 호출해 서킷 브레이커에 실패를 반영한다.
+   */
+  recordFailure(serviceKey: string): void {
+    const state = this.getOrCreate(serviceKey);
+    this.onFailure(serviceKey, state);
+  }
+
   private getOrCreate(key: string): BreakerState {
     if (!this.states.has(key)) {
       this.states.set(key, {

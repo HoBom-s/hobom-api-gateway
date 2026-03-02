@@ -34,6 +34,22 @@ describe("HeaderBuilder", () => {
     expect(result["transfer-encoding"]).toBeUndefined();
   });
 
+  it("removes spoofable proxy headers", () => {
+    const req = makeRequest({
+      "content-type": "application/json",
+      "x-forwarded-for": "1.2.3.4",
+      "x-forwarded-host": "evil.com",
+      "x-forwarded-proto": "http",
+      "x-real-ip": "5.6.7.8",
+    });
+    const result = builder.build(req);
+    expect(result["content-type"]).toBe("application/json");
+    expect(result["x-forwarded-for"]).toBeUndefined();
+    expect(result["x-forwarded-host"]).toBeUndefined();
+    expect(result["x-forwarded-proto"]).toBeUndefined();
+    expect(result["x-real-ip"]).toBeUndefined();
+  });
+
   it("injects Authorization header from accessToken cookie", () => {
     const req = makeRequest({}, { accessToken: "my-token" });
     const result = builder.build(req);
@@ -46,12 +62,12 @@ describe("HeaderBuilder", () => {
     expect(result["authorization"]).toBeUndefined();
   });
 
-  it("accessToken cookie overrides existing authorization header", () => {
+  it("preserves explicit Authorization header over cookie", () => {
     const req = makeRequest(
       { authorization: "Bearer old-token" },
       { accessToken: "new-token" },
     );
     const result = builder.build(req);
-    expect(result["authorization"]).toBe("Bearer new-token");
+    expect(result["authorization"]).toBe("Bearer old-token");
   });
 });

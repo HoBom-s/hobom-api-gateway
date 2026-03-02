@@ -1,6 +1,7 @@
 import { NestFactory } from "@nestjs/core";
 import * as express from "express";
 import * as cookieParser from "cookie-parser";
+import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { RequestIdMiddleware } from "./shared/middlewares/request-id.middleware";
 import { TraceInterceptor } from "./shared/interceptors/trace.interceptors";
@@ -10,13 +11,19 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
-  process.on("SIGTERM", () => {
-    app.close();
+  process.on("SIGTERM", async () => {
+    await app.close();
     process.exit(0);
   });
 
+  // Reverse proxy 뒤에서 클라이언트 IP를 올바르게 식별 (X-Forwarded-For 신뢰)
+  app.getHttpAdapter().getInstance().set("trust proxy", 1);
+
+  app.use(helmet());
+
   app.enableCors({
     origin: [process.env.HOBOM_CLIENT_HOST],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
@@ -24,14 +31,12 @@ async function bootstrap() {
       "Accept",
       "Origin",
       "x-hobom-api-key",
-      "Access-Control-Allow-Origin",
-      "Access-Control-Allow-Credentials",
     ],
     credentials: true,
   });
 
-  app.use(express.json({ limit: "20mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "20mb" }));
+  app.use(express.json({ limit: "5mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "5mb" }));
   app.use(cookieParser());
   app.use(new RequestIdMiddleware().use);
 
