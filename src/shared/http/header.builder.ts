@@ -31,10 +31,7 @@ export class HeaderBuilder {
     return map;
   }
 
-  public build(
-    req: Request,
-    serviceKey?: string,
-  ): Record<string, string> {
+  public build(req: Request, serviceKey?: string): Record<string, string> {
     const headers = { ...req.headers };
     delete headers["host"];
     delete headers["content-length"];
