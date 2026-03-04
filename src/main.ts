@@ -19,7 +19,19 @@ async function bootstrap() {
   // Reverse proxy 뒤에서 클라이언트 IP를 올바르게 식별 (X-Forwarded-For 신뢰)
   app.getHttpAdapter().getInstance().set("trust proxy", 1);
 
-  app.use(helmet());
+  app.use((req, res, next) => {
+    if (req.originalUrl.includes("/scalar/")) {
+      return helmet({
+        contentSecurityPolicy: {
+          directives: {
+            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+            "script-src": ["'self'", "https://cdn.jsdelivr.net"],
+          },
+        },
+      })(req, res, next);
+    }
+    return helmet()(req, res, next);
+  });
 
   app.enableCors({
     origin: [process.env.HOBOM_CLIENT_HOST],
