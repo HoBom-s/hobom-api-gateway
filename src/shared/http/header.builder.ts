@@ -7,10 +7,28 @@ export class HeaderBuilder {
   private readonly serviceApiKeys: Record<string, string>;
 
   constructor(private readonly configService: ConfigService) {
-    this.serviceApiKeys = {
-      "hobom-internal":
-        this.configService.get<string>("HOBOM_INTERNAL_API_KEY") ?? "",
-    };
+    this.serviceApiKeys = this.buildServiceApiKeys();
+  }
+
+  /**
+   * SERVICE_API_KEYS 환경변수에서 서비스별 API Key를 파싱한다.
+   * 형식: SERVICE_API_KEYS=서비스명=키,서비스명2=키2
+   */
+  private buildServiceApiKeys(): Record<string, string> {
+    const map: Record<string, string> = {};
+    const raw = this.configService.get<string>("SERVICE_API_KEYS");
+    if (raw) {
+      for (const entry of raw.split(",")) {
+        const idx = entry.indexOf("=");
+        if (idx === -1) continue;
+        const service = entry.slice(0, idx).trim();
+        const key = entry.slice(idx + 1).trim();
+        if (service && key) {
+          map[service] = key;
+        }
+      }
+    }
+    return map;
   }
 
   public build(
