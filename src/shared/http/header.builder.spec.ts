@@ -1,4 +1,5 @@
 import { HeaderBuilder } from "./header.builder";
+import { ConfigService } from "@nestjs/config";
 import { Request } from "express";
 
 function makeRequest(
@@ -8,11 +9,18 @@ function makeRequest(
   return { headers, cookies } as unknown as Request;
 }
 
+function makeConfigService(serviceApiKeys?: string): ConfigService {
+  return {
+    get: (key: string) =>
+      key === "SERVICE_API_KEYS" ? serviceApiKeys : undefined,
+  } as unknown as ConfigService;
+}
+
 describe("HeaderBuilder", () => {
   let builder: HeaderBuilder;
 
   beforeEach(() => {
-    builder = new HeaderBuilder();
+    builder = new HeaderBuilder(makeConfigService());
   });
 
   it("copies headers from request", () => {
@@ -69,5 +77,21 @@ describe("HeaderBuilder", () => {
     );
     const result = builder.build(req);
     expect(result["authorization"]).toBe("Bearer old-token");
+  });
+
+  it("injects x-api-key when serviceKey matches SERVICE_API_KEYS", () => {
+    const b = new HeaderBuilder(
+      makeConfigService("backend=secret123,internal=key456"),
+    );
+    const req = makeRequest({ "content-type": "application/json" });
+    const result = b.build(req, "backend");
+    expect(result["x-api-key"]).toBe("secret123");
+  });
+
+  it("does not inject x-api-key when serviceKey has no matching key", () => {
+    const b = new HeaderBuilder(makeConfigService("backend=secret123"));
+    const req = makeRequest({ "content-type": "application/json" });
+    const result = b.build(req, "unknown");
+    expect(result["x-api-key"]).toBeUndefined();
   });
 });

@@ -11,8 +11,8 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
-  process.on("SIGTERM", async () => {
-    await app.close();
+  process.on("SIGTERM", () => {
+    app.close();
     process.exit(0);
   });
 
