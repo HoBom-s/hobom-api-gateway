@@ -28,6 +28,11 @@ export class ApiKeyAuthGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<Request>();
+
+    if (this.isPublicPath(request.originalUrl)) {
+      return true;
+    }
+
     const apiKey = request.headers[API_KEY_HEADER];
     const expected = process.env.HOBOM_API_GATEWAY_KEY;
 
@@ -43,6 +48,12 @@ export class ApiKeyAuthGuard implements CanActivate {
     }
 
     return true;
+  }
+
+  private static readonly PUBLIC_PATH_PATTERNS = [/\/scalar\//, /\/openapi\//];
+
+  private isPublicPath(url: string): boolean {
+    return ApiKeyAuthGuard.PUBLIC_PATH_PATTERNS.some((p) => p.test(url));
   }
 
   /** 타이밍 공격 방지를 위한 상수 시간 비교 */
