@@ -31,6 +31,21 @@ export class HeaderBuilder {
     return map;
   }
 
+  private extractNicknameFromToken(
+    authorization: string | undefined,
+  ): string | null {
+    if (!authorization?.startsWith("Bearer ")) return null;
+    try {
+      const token = authorization.slice(7);
+      const payload = JSON.parse(
+        Buffer.from(token.split(".")[1], "base64url").toString(),
+      );
+      return payload.sub ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   public build(req: Request, serviceKey?: string): Record<string, string> {
     const headers = { ...req.headers };
     delete headers["host"];
@@ -51,6 +66,14 @@ export class HeaderBuilder {
 
     if (serviceKey && this.serviceApiKeys[serviceKey]) {
       headers["x-api-key"] = this.serviceApiKeys[serviceKey];
+    }
+
+    // JWT payload에서 nickname(sub)을 추출하여 X-User-Nickname 헤더로 주입한다.
+    const nickname = this.extractNicknameFromToken(
+      headers["authorization"] as string | undefined,
+    );
+    if (nickname) {
+      headers["x-user-nickname"] = nickname;
     }
 
     return headers as Record<string, string>;

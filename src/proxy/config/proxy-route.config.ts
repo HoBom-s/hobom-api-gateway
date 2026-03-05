@@ -40,6 +40,13 @@ export class ProxyRouteConfig {
       map["hobom-internal"] = internal;
     }
 
+    const space = this.configService.get<string>(
+      "HOBOM_SPACE_API_SERVER_HOST",
+    );
+    if (space) {
+      map["hobom-space"] = space;
+    }
+
     const dynamicRoutes = this.configService.get<string>("PROXY_ROUTES");
     if (dynamicRoutes) {
       for (const entry of dynamicRoutes.split(",")) {
