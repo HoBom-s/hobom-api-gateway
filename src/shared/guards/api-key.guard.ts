@@ -50,7 +50,11 @@ export class ApiKeyAuthGuard implements CanActivate {
     return true;
   }
 
-  private static readonly PUBLIC_PATH_PATTERNS = [/\/scalar\//, /\/openapi\//];
+  private static readonly PUBLIC_PATH_PATTERNS = [
+    /\/scalar\//,
+    /\/openapi\//,
+    /\/api-docs/,
+  ];
 
   private isPublicPath(url: string): boolean {
     return ApiKeyAuthGuard.PUBLIC_PATH_PATTERNS.some((p) => p.test(url));
