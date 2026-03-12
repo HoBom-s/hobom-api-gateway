@@ -18,7 +18,7 @@ const DEFAULT_CONFIG: BreakerConfig = {
   failureThresholdPercent: 50,
   minRequestCount: 5,
   resetTimeoutMs: 30_000,
-  timeoutMs: 5_000,
+  timeoutMs: 60_000,
 };
 
 /** 서비스별 서킷 브레이커 상태를 관리한다. */
