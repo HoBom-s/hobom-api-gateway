@@ -11,7 +11,7 @@ import { CircuitBreakerService } from "../shared/circuit-breaker/circuit-breaker
 @Module({
   imports: [
     HttpModule.register({
-      timeout: 60_000,
+      timeout: 120_000,
     }),
   ],
   controllers: [ProxyController],
