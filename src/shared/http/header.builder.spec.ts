@@ -94,4 +94,18 @@ describe("HeaderBuilder", () => {
     const result = b.build(req, "unknown");
     expect(result["x-api-key"]).toBeUndefined();
   });
+
+  it("percent-encodes a non-ASCII nickname from the JWT payload", () => {
+    const nickname = "호빗";
+    const payload = Buffer.from(JSON.stringify({ sub: nickname })).toString(
+      "base64url",
+    );
+    const req = makeRequest({
+      authorization: `Bearer header.${payload}.sig`,
+    });
+    const result = builder.build(req);
+    expect(result["x-user-nickname"]).toBe(encodeURIComponent(nickname));
+    // 인코딩된 값은 latin1(ASCII) 범위 안에 있어야 한다.
+    expect(/^[\x00-\x7f]*$/.test(result["x-user-nickname"])).toBe(true);
+  });
 });

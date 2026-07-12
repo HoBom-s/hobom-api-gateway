@@ -69,11 +69,11 @@ export class HeaderBuilder {
     }
 
     // JWT payload에서 nickname(sub)을 추출하여 X-User-Nickname 헤더로 주입한다.
-    const nickname = this.extractNicknameFromToken(
-      headers["authorization"] as string | undefined,
-    );
+    // HTTP 헤더 값은 latin1만 허용되므로, 한글 등 비ASCII 닉네임은
+    // percent-encoding 하여 ERR_INVALID_CHAR를 방지한다. (수신 측에서 decodeURIComponent)
+    const nickname = this.extractNicknameFromToken(headers["authorization"]);
     if (nickname) {
-      headers["x-user-nickname"] = nickname;
+      headers["x-user-nickname"] = encodeURIComponent(nickname);
     }
 
     return headers as Record<string, string>;
