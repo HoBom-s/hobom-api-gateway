@@ -11,5 +11,7 @@ hobomPipeline(
     docker run --rm --user "$UID:$GID" -e HOME=/tmp \
       -v "$PWD":/app -w /app node:20 sh -lc 'npm ci && npm run build'
   ''' },
-  smokeCheckPath: '/'
+  smokeCheckPath: '/',
+  liveHostPort:   '19090',
+  liveEnvPath:    '/etc/hobom-live/live-hobom-api-gateway/.env'
 )
