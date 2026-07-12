@@ -6,7 +6,10 @@ import { AxiosError } from "axios";
 import { HeaderBuilder } from "../../shared/http/header.builder";
 import { ResponseForwarderBuilder } from "../../shared/http/response-forwarder.builder";
 import { ErrorForwarderBuilder } from "../../shared/http/error-forwarder.builder";
-import { CircuitBreakerService, CircuitOpenError } from "../../shared/circuit-breaker/circuit-breaker.service";
+import {
+  CircuitBreakerService,
+  CircuitOpenError,
+} from "../../shared/circuit-breaker/circuit-breaker.service";
 
 @Injectable()
 export class ProxyService {
@@ -26,7 +29,7 @@ export class ProxyService {
     url: string,
     serviceKey: string,
   ): Promise<void> {
-    const headers = this.headerBuilder.build(req);
+    const headers = this.headerBuilder.build(req, serviceKey);
 
     try {
       await this.circuitBreakerService.fire(serviceKey, () =>
@@ -43,6 +46,9 @@ export class ProxyService {
             .pipe(
               tap((axiosResponse) => {
                 this.responseForwarderBuilder.build(axiosResponse, req, res);
+                if (axiosResponse.status >= 500) {
+                  this.circuitBreakerService.recordFailure(serviceKey);
+                }
               }),
             ),
         ),

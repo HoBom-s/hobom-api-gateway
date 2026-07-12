@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "node_modules/.bin/nest build",
-    "format": "node_modules/.bin/prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "node_modules/.bin/prettier --write \"src/**/*.ts\"",
     "start": "node_modules/.bin/nest start",
     "start:dev": "node_modules/.bin/nest start --watch",
     "start:debug": "node_modules/.bin/nest start --debug --watch",
@@ -23,9 +23,9 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/throttler": "^6.5.0",
-    "@swc/cli": "^0.6.0",
     "axios": "^1.9.0",
     "cookie-parser": "^1.4.7",
+    "helmet": "^8.1.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "uuid": "^11.1.0"
@@ -36,6 +36,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@swc/cli": "^0.6.0",
     "@swc/core": "^1.10.7",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
